@@ -1,0 +1,27 @@
+name: settalk-claude
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: settalk
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: python3 bridge.py
+        env:
+          SETTALK_KEY: ${{ secrets.SETTALK_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      - name: Save last_id
+        run: |
+          git config user.name settalk-bot
+          git config user.email bot@users.noreply.github.com
+          git add last_id.txt
+          git diff --cached --quiet || (git commit -m "last_id" && git push)
