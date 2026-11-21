@@ -45,6 +45,7 @@ BASE = os.environ.get("SETTALK_BASE", "https://chat.gonipro.app").rstrip("/")
 KEY = os.environ.get("SETTALK_KEY", "").strip()
 BOT = os.environ.get("BOT_NAME", "").strip()
 STATE_FILE = Path(os.environ.get("STATE_FILE", ".state/state.json"))
+LAST_ID_FILE = Path(os.environ.get("LAST_ID_FILE", "last_id.txt"))
 DRY_RUN = os.environ.get("DRY_RUN", "").strip().lower() not in ("", "0", "false", "no")
 MAX_MENTIONS = int(os.environ.get("MAX_MENTIONS_PER_RUN", "5") or 5)
 MAX_AGE_MIN = int(os.environ.get("MAX_AGE_MINUTES", "60") or 0)
@@ -108,6 +109,23 @@ def save_state(state: dict) -> None:
     tmp = STATE_FILE.with_name(STATE_FILE.name + ".tmp")
     tmp.write_text(json.dumps(state, ensure_ascii=False, indent=1), "utf-8")
     os.replace(tmp, STATE_FILE)
+
+
+def read_last_id_file() -> int:
+    """클로드 방식과 호환: 저장소에 커밋되는 last_id.txt (정수 한 줄)."""
+    try:
+        if LAST_ID_FILE.exists():
+            return int((LAST_ID_FILE.read_text("utf-8") or "0").strip() or 0)
+    except Exception as e:
+        log(f"last_id file read failed: {e}")
+    return 0
+
+
+def write_last_id_file(value: int) -> None:
+    try:
+        LAST_ID_FILE.write_text(str(int(value)), "utf-8")
+    except Exception as e:
+        log(f"last_id file write failed: {e}")
 
 
 # ---------------------------------------------------------------- 셋톡
@@ -363,7 +381,7 @@ def trigger_list() -> list[str]:
         return [t.strip() for t in raw.split(",") if t.strip()]
     if not BOT:
         return []
-    return [f"@{BOT}", BOT]
+    return [f"@{BOT}"]
 
 
 def first_trigger_in(text: str) -> str:
@@ -408,7 +426,11 @@ def main() -> int:
         return 2
 
     state = load_state()
-    since = int(state.get("last_id") or os.environ.get("SINCE_ID") or 0)
+    since = max(
+        int(state.get("last_id") or 0),
+        int(os.environ.get("SINCE_ID") or 0),
+        read_last_id_file(),
+    )
     pending = state.get("pending") or []
     replied = set(state.get("replied") or [])
 
@@ -429,6 +451,10 @@ def main() -> int:
             return 2
 
     SYSTEM_PROMPT = (os.environ.get("SYSTEM_PROMPT") or "").strip() or DEFAULT_SYSTEM.format(bot=BOT)
+    room_me = (room.get("me") or "").strip()
+    if room_me and room_me != BOT:
+        log(f"경고: 이 열쇠의 주인은 '{room_me}'입니다. 답글은 '{BOT}'이 아니라 '{room_me}' 이름으로 올라갑니다."
+            f" '{BOT}' 이름으로 답하려면 그 이름의 열쇠를 SETTALK_KEY에 넣으세요.")
     triggers = trigger_list()
     if not triggers:
         log("no triggers configured")
@@ -436,6 +462,16 @@ def main() -> int:
 
     msgs = sorted((room.get("msgs") or []), key=lambda m: int(m.get("id") or 0))
     max_id = max([int(m.get("id") or 0) for m in msgs] + [since])
+
+    # 첫 실행(since=0): 과거 글에 몰아 답하지 않고 위치만 기억한다
+    if since == 0:
+        state["last_id"] = max_id
+        state["updated_at"] = int(time.time())
+        save_state(state)
+        write_last_id_file(max_id)
+        log(f"첫 실행: 기준 위치만 저장했습니다 (last_id={max_id}). 다음 실행부터 멘션에 답합니다.")
+        print(json.dumps({"bot": BOT, "first_run": True, "last_id": max_id}, ensure_ascii=False))
+        return 0
     provider = detect_provider()
     if provider == "echo" and not DRY_RUN:
         log("PROVIDER=echo 는 DRY_RUN 전용입니다. 실제 답장을 원하면 API 키나 BUI_WEBHOOK_URL을 넣고 PROVIDER를 지정하세요.")
@@ -486,6 +522,7 @@ def main() -> int:
     state["pending"] = failed
     state["updated_at"] = int(time.time())
     save_state(state)
+    write_last_id_file(state["last_id"])
 
     summary = {
         "bot": BOT,

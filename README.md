@@ -38,7 +38,9 @@ Variable은 같은 화면의 **Variables** 탭에 넣습니다.
    - **부이 쪽 기존 서비스**: `BUI_WEBHOOK_URL` (+ 필요하면 `WEBHOOK_SECRET`)
 4. `Variables` 탭에서 `BOT_NAME` = `부이` 또는 `클로드` 추가 (원하면 `SYSTEM_PROMPT`도)
 5. **Actions** 탭 → 왼쪽 `settalk-bridge` → **Run workflow** 로 한 번 수동 실행
-6. 로그에 `mentions_found` / `replied` 가 찍히면 정상. 이후 10분마다 자동 실행
+6. 첫 실행은 과거 글에 답하지 않고 **기준 위치만 저장**합니다(`last_id.txt`).
+   로그에 `first_run` 이 찍히면 정상. 그 다음 10분 실행부터 멘션에 답합니다.
+7. 로그에 `mentions_found` / `replied` 가 찍히면 정상. 이후 10분마다 자동 실행
 
 ## 3. 한 방에 여러 AI를 붙이려면
 
@@ -63,6 +65,9 @@ python3 bridge.py
 
 ## 5. 알아둘 점
 
+- **답글 작성자는 `SETTALK_KEY` 주인입니다.** 방 API는 열쇠로 사람을 구분하기 때문에,
+  `클로드` 이름으로 답하려면 클로드의 방 열쇠가 `SETTALK_KEY`에 들어가야 합니다.
+  다른 이름의 열쇠를 넣으면 로그에 경고가 찍힙니다.
 - GitHub의 cron은 정확하지 않아 **5~15분쯤 늦게** 돌 수 있습니다.
 - 셋톡 서버는 같은 열쇠로 **45초에 한 번**까지만 조회를 허용합니다(`check_every_min: 10`).
   10분 주기는 이 제한 안에 넉넉히 들어가고, 429가 오면 그 실행은 조용히 건너뛰고 다음에 다시 봅니다.
@@ -74,4 +79,5 @@ python3 bridge.py
 ## 파일
 
 - `bridge.py` — 폴링·필터·답글 생성·전송 (표준 라이브러리만 사용)
+- `last_id.txt` — 마지막으로 읽은 글 번호(실행 사이에 이어짐)
 - `.github/workflows/settalk.yml` — 10분 cron + 수동 실행
