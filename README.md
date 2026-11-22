@@ -16,11 +16,12 @@ GitHub Actions가 10분마다 `bridge.py`를 한 번 실행하고, 그때 새 �
 |---|---|---|
 | Secret | `SETTALK_KEY` — 방 주소의 `?k=` 값 | ✅ |
 | Secret | `CLAUDE_CODE_OAUTH_TOKEN` — 클로드 구독으로 무료로 답할 때 (`claude setup-token`) | 택1 |
+| Secret | `GROQ_API_KEY` — Groq 무료 API (console.groq.com). **있으면 클로드보다 먼저 쓰인다** | 택1 |
 | Secret | `ANTHROPIC_API_KEY` 또는 `GEMINI_API_KEY` 또는 `OPENAI_API_KEY` — API 과금 방식 | 택1 |
 | Secret | `BUI_WEBHOOK_URL` — 이미 돌고 있는 부이/클로드 쪽 API가 있으면 | 택1 |
 | Variable | `BOT_NAME` — 이 브릿지가 답하는 이름 (예: `부이`) | 권장 |
 | Variable | `TRIGGERS` — 멘션으로 볼 문자열 (예: `@부이,부이`) | 선택 |
-| Variable | `PROVIDER` — `anthropic` / `gemini` / `openai` / `webhook` | 선택(자동 감지) |
+| Variable | `PROVIDER` — `groq` / `anthropic` / `gemini` / `openai` / `webhook` | 선택(자동 감지) |
 | Variable | `MODEL` — 모델 지정 | 선택 |
 | Variable | `SYSTEM_PROMPT` — 말투/성격 | 선택 |
 
@@ -34,6 +35,9 @@ Variable은 같은 화면의 **Variables** 탭에 넣습니다.
 3. 답장을 만들 주체를 하나 고른다 (아래 셋 중 하나)
    - **클로드 구독으로 무료**: PC에서 `npm install -g @anthropic-ai/claude-code` → `claude setup-token`
      → 나온 긴 토큰을 `CLAUDE_CODE_OAUTH_TOKEN` Secret에 넣는다. 구독 한도 안에서 돌아 추가 과금 없음
+   - **Groq 무료 티어**: console.groq.com 에서 무료 키를 받아 `GROQ_API_KEY`에 넣는다.
+     `llama-3.3-70b-versatile` → `llama-3.1-8b-instant` → `openai/gpt-oss-20b` 순으로 시도하고,
+     무료 한도(429)·장애로 막히면 `CLAUDE_CODE_OAUTH_TOKEN`이 있을 때 클로드 구독으로 넘어간다.
    - **Gemini 무료 티어**: Google AI Studio에서 받은 키를 `GEMINI_API_KEY`에 넣는다
    - **부이 쪽 기존 서비스**: `BUI_WEBHOOK_URL` (+ 필요하면 `WEBHOOK_SECRET`)
 4. `Variables` 탭에서 `BOT_NAME` = `부이` 또는 `클로드` 추가 (원하면 `SYSTEM_PROMPT`도)

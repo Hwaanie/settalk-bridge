@@ -16,8 +16,9 @@
   SETTALK_BASE     기본 https://chat.gonipro.app
   BOT_NAME         이 브릿지가 답하는 이름. 비우면 서버가 알려주는 me 값을 쓴다.
   TRIGGERS         멘션으로 볼 문자열들(쉼표 구분). 기본 "@<BOT_NAME>"
-  PROVIDER         anthropic | openai | gemini | webhook | echo  (비우면 자동 선택)
-  ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY / BUI_WEBHOOK_URL
+  PROVIDER         groq | anthropic | openai | gemini | webhook | echo  (비우면 자동 선택)
+  GROQ_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY / BUI_WEBHOOK_URL
+  GROQ_BASE_URL    기본 https://api.groq.com/openai/v1 (OpenAI 호환 엔드포인트)
   MODEL            모델 지정(선택). 없으면 PROVIDER별 기본 후보를 차례로 시도.
   SYSTEM_PROMPT    봇 성격/말투(선택)
   MAX_REPLY_CHARS  답글 최대 길이(기본 900자)
@@ -245,6 +246,44 @@ def ask_openai(prompt: str) -> str:
     raise last or HttpError(0, "openai: no model worked")
 
 
+def ask_groq(prompt: str) -> str:
+    """Groq 무료 API로 답한다 (OpenAI 호환 /chat/completions).
+
+    console.groq.com 에서 받은 무료 키를 GROQ_API_KEY 에 넣으면 추가 과금 없이 돈다.
+    무료 티어는 모델별 분당 한도가 있어 429가 나면 다음 후보 모델로 넘어간다.
+    """
+    api_key = os.environ["GROQ_API_KEY"]
+    base = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+    models = [os.environ.get("MODEL") or "llama-3.3-70b-versatile",
+              "llama-3.1-8b-instant", "openai/gpt-oss-20b"]
+    last = None
+    for model in dict.fromkeys(models):
+        try:
+            data = http_json(
+                "POST", f"{base}/chat/completions",
+                {
+                    "model": model,
+                    "max_tokens": 500,
+                    "temperature": 0.6,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                },
+                {"Authorization": f"Bearer {api_key}"},
+            )
+            return _trim(data["choices"][0]["message"]["content"])
+        except HttpError as e:
+            last = e
+            if e.status in (400, 404, 429, 413):
+                log(f"groq model {model} rejected ({e.status}); trying next")
+                continue
+            raise
+        except (KeyError, IndexError):
+            raise HttpError(0, f"groq: unexpected response {json.dumps(data)[:200]}")
+    raise last or HttpError(0, "groq: no model worked")
+
+
 def ask_gemini(prompt: str) -> str:
     api_key = os.environ["GEMINI_API_KEY"]
     models = [os.environ.get("MODEL") or "gemini-2.0-flash",
@@ -343,6 +382,8 @@ def detect_provider() -> str:
     explicit = os.environ.get("PROVIDER", "").strip().lower()
     if explicit:
         return explicit
+    if os.environ.get("GROQ_API_KEY"):
+        return "groq"
     if os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
         return "claude-cli"
     if os.environ.get("BUI_WEBHOOK_URL"):
@@ -362,6 +403,15 @@ def generate_reply(provider: str, msg: dict, context: str) -> str:
         return ask_webhook(prompt, msg, context)
     if provider in ("claude-cli", "claude", "cli"):
         return ask_claude_cli(prompt, msg, context)
+    if provider == "groq":
+        try:
+            return ask_groq(prompt)
+        except HttpError as e:
+            # 무료 한도·장애로 Groq이 막히면 클로드 구독으로 이어서 답한다
+            if os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") and os.environ.get("GROQ_FALLBACK_CLAUDE", "1") != "0":
+                log(f"groq failed ({e}); falling back to claude-cli")
+                return ask_claude_cli(prompt, msg, context)
+            raise
     if provider == "anthropic":
         return ask_anthropic(prompt)
     if provider == "openai":
