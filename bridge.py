@@ -250,12 +250,13 @@ def ask_groq(prompt: str) -> str:
     """Groq 무료 API로 답한다 (OpenAI 호환 /chat/completions).
 
     console.groq.com 에서 받은 무료 키를 GROQ_API_KEY 에 넣으면 추가 과금 없이 돈다.
-    무료 티어는 모델별 분당 한도가 있어 429가 나면 다음 후보 모델로 넘어간다.
+    무료 플랜에는 gpt-oss-120b/20b 같은 모델이 카드 등록 없이 열려 있고(모델별 분당·일일 한도),
+    무료 한도에 걸리면 429가 나므로 다음 후보 모델로 넘어간다.
     """
     api_key = os.environ["GROQ_API_KEY"]
     base = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
-    models = [os.environ.get("MODEL") or "llama-3.3-70b-versatile",
-              "llama-3.1-8b-instant", "openai/gpt-oss-20b"]
+    models = [os.environ.get("MODEL") or "openai/gpt-oss-120b",
+              "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "llama-3.3-70b-versatile"]
     last = None
     for model in dict.fromkeys(models):
         try:

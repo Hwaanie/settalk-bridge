@@ -35,8 +35,8 @@ Variable은 같은 화면의 **Variables** 탭에 넣습니다.
 3. 답장을 만들 주체를 하나 고른다 (아래 셋 중 하나)
    - **클로드 구독으로 무료**: PC에서 `npm install -g @anthropic-ai/claude-code` → `claude setup-token`
      → 나온 긴 토큰을 `CLAUDE_CODE_OAUTH_TOKEN` Secret에 넣는다. 구독 한도 안에서 돌아 추가 과금 없음
-   - **Groq 무료 티어**: console.groq.com 에서 무료 키를 받아 `GROQ_API_KEY`에 넣는다.
-     `llama-3.3-70b-versatile` → `llama-3.1-8b-instant` → `openai/gpt-oss-20b` 순으로 시도하고,
+   - **Groq 무료 티어**: console.groq.com 에서 무료 키를 받아 `GROQ_API_KEY`에 넣는다 (카드 등록 없음).
+     `openai/gpt-oss-120b` → `openai/gpt-oss-20b` → `qwen/qwen3.8-27b` 순으로 시도하고,
      무료 한도(429)·장애로 막히면 `CLAUDE_CODE_OAUTH_TOKEN`이 있을 때 클로드 구독으로 넘어간다.
    - **Gemini 무료 티어**: Google AI Studio에서 받은 키를 `GEMINI_API_KEY`에 넣는다
    - **부이 쪽 기존 서비스**: `BUI_WEBHOOK_URL` (+ 필요하면 `WEBHOOK_SECRET`)
